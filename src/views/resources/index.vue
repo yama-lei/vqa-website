@@ -40,21 +40,27 @@
           style="width: 100%" 
           v-loading="loading"
           class="resources-table"
+          :row-class-name="tableRowClassName"
         >
-          <el-table-column label="资源名称" prop="name">
+          <el-table-column label="资源名称" prop="name" min-width="300">
             <template #default="scope">
               <div class="resource-name" @click="previewResource(scope.row)">
-                <el-icon>
+                <el-icon class="resource-icon">
                   <Document v-if="scope.row.type === 'paper' || scope.row.type === 'note'" />
                   <Folder v-if="scope.row.type === 'code'" />
                   <VideoPlay v-if="scope.row.type === 'video'" />
                   <Files v-if="scope.row.type === 'other'" />
                 </el-icon>
-                <span>{{ scope.row.name }}</span>
+                <div class="resource-info">
+                  <span class="resource-title">{{ scope.row.name }}</span>
+                  <span class="resource-meta">
+                    {{ formatFileSize(scope.row.size) }} · {{ getFileExtension(scope.row.name) }}
+                  </span>
+                </div>
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="类型" prop="type" width="120">
+          <el-table-column label="类型" prop="type" width="120" align="center">
             <template #default="scope">
               <el-tag 
                 :type="getTagType(scope.row.type)" 
@@ -65,9 +71,9 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="上传时间" prop="uploadTime" width="180"></el-table-column>
-          <el-table-column label="上传者" prop="uploader" width="120"></el-table-column>
-          <el-table-column label="操作" width="180">
+          <el-table-column label="上传时间" prop="uploadTime" width="180" align="center"></el-table-column>
+          <el-table-column label="上传者" prop="uploader" width="120" align="center"></el-table-column>
+          <el-table-column label="操作" width="180" align="center" fixed="right">
             <template #default="scope">
               <div class="action-buttons">
                 <el-button 
@@ -84,6 +90,15 @@
                   @click="previewResource(scope.row)"
                 >
                   <el-icon><View /></el-icon>预览
+                </el-button>
+                <el-button 
+                  v-if="isLoggedIn"
+                  size="small" 
+                  type="danger" 
+                  class="delete-btn"
+                  @click="handleDelete(scope.row)"
+                >
+                  <el-icon><Delete /></el-icon>删除
                 </el-button>
               </div>
             </template>
@@ -112,7 +127,43 @@
       class="preview-dialog"
     >
       <div class="preview-container">
-        <div class="unknown-preview">
+        <!-- PDF 预览 -->
+        <div v-if="isPdfFile(currentResource?.name)" class="pdf-preview">
+          <VuePdfEmbed
+            :source="currentResource?.url"
+            :page="1"
+            class="pdf-viewer"
+          />
+        </div>
+        
+        <!-- Markdown 预览 -->
+        <div v-else-if="isMarkdownFile(currentResource?.name)" class="markdown-preview">
+          <div v-html="renderedMarkdown" class="markdown-content"></div>
+        </div>
+        
+        <!-- 图片预览 -->
+        <div v-else-if="isImageFile(currentResource?.name)" class="image-preview">
+          <el-image 
+            :src="currentResource?.url" 
+            fit="contain"
+            :preview-src-list="[currentResource?.url]"
+          />
+        </div>
+        
+        <!-- 视频预览 -->
+        <div v-else-if="currentResource?.type === 'video'" class="video-preview">
+          <video 
+            :src="currentResource?.url" 
+            controls
+            class="video-player"
+            :type="getVideoType(currentResource?.name)"
+          >
+            您的浏览器不支持视频播放
+          </video>
+        </div>
+        
+        <!-- 未知类型预览 -->
+        <div v-else class="unknown-preview">
           <el-icon class="preview-icon"><Document /></el-icon>
           <p>该文件类型暂不支持预览，请下载后查看</p>
         </div>
@@ -137,11 +188,13 @@ import {
   Search, 
   Download, 
   View,
-  Files
+  Files,
+  Delete
 } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { downloadFile as ossDownload, listFiles, getSignedUrl, createOssClient } from '../../utils/oss'
 import VuePdfEmbed from 'vue-pdf-embed'
+import { useRouter } from 'vue-router'
 
 const loading = ref(false)
 const searchKeyword = ref('')
@@ -157,6 +210,9 @@ const ossConfig = ref(null) // 添加OSS配置的状态
 
 // 资源列表，实际项目中从后端或本地存储获取
 const resources = ref([])
+
+const router = useRouter()
+const isLoggedIn = ref(false)
 
 // 获取标签类型
 const getTagType = (resourceType) => {
@@ -270,7 +326,14 @@ const previewResource = async (resource) => {
   try {
     console.log('开始预览资源:', resource)
     
-    // 直接显示预览对话框
+    // 如果是 Markdown 文件，获取内容并渲染
+    if (isMarkdownFile(resource.name)) {
+      const response = await fetch(resource.url)
+      const markdownContent = await response.text()
+      renderedMarkdown.value = marked(markdownContent)
+    }
+    
+    // 显示预览对话框
     currentResource.value = resource
     previewDialogVisible.value = true
   } catch (error) {
@@ -333,8 +396,43 @@ const determineType = (fileName) => {
   return fileType
 }
 
+// 检查登录状态
+const checkLoginStatus = () => {
+  isLoggedIn.value = localStorage.getItem('isLoggedIn') === 'true'
+}
+
+// 删除资源
+const handleDelete = (resource) => {
+  ElMessageBox.confirm(
+    `确定要删除资源 "${resource.name}" 吗？此操作不可恢复。`,
+    '删除确认',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+      confirmButtonClass: 'el-button--danger'
+    }
+  ).then(async () => {
+    try {
+      // 这里添加删除资源的逻辑
+      // 实际项目中应该调用后端 API
+      const index = resources.value.findIndex(r => r.objectName === resource.objectName)
+      if (index > -1) {
+        resources.value.splice(index, 1)
+        ElMessage.success('删除成功')
+      }
+    } catch (error) {
+      console.error('删除失败:', error)
+      ElMessage.error('删除失败')
+    }
+  }).catch(() => {
+    // 取消删除
+  })
+}
+
 // 组件挂载时获取资源列表
 onMounted(async () => {
+  checkLoginStatus()
   loading.value = true
   try {
     // 获取OSS文件列表
@@ -354,7 +452,8 @@ onMounted(async () => {
           objectName: file.objectName || file.name,
           uploadTime: new Date(file.lastModified).toLocaleString(),
           uploader: '系统用户',
-          description: ''
+          description: '',
+          size: file.size
         }
       })
     }
@@ -396,7 +495,8 @@ const convertUploadHistoryToResources = () => {
         objectName: item.objectName || item.fileName,
         uploadTime: item.uploadTime,
         uploader: '当前用户',
-        description: item.description || ''
+        description: item.description || '',
+        size: item.size
       }
     })
     
@@ -418,6 +518,31 @@ const openInNewTab = (url) => {
     return
   }
   window.open(url, '_blank')
+}
+
+// 格式化文件大小
+const formatFileSize = (bytes) => {
+  if (!bytes) return '未知'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let size = bytes
+  let unitIndex = 0
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024
+    unitIndex++
+  }
+  return `${size.toFixed(1)} ${units[unitIndex]}`
+}
+
+// 获取文件扩展名
+const getFileExtension = (fileName) => {
+  if (!fileName) return '未知'
+  const ext = fileName.split('.').pop().toUpperCase()
+  return ext || '未知'
+}
+
+// 表格行样式
+const tableRowClassName = ({ row }) => {
+  return 'resource-row'
 }
 </script>
 
@@ -507,28 +632,43 @@ const openInNewTab = (url) => {
   display: flex;
   align-items: center;
   cursor: pointer;
+  padding: 8px 0;
+}
+
+.resource-icon {
+  font-size: 24px;
+  margin-right: 12px;
   color: #5b48d0;
-  transition: color 0.3s;
 }
 
-.resource-name:hover {
-  color: #3a8ee6;
+.resource-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.resource-name .el-icon {
-  margin-right: 8px;
-  font-size: 18px;
+.resource-title {
+  font-size: 14px;
+  color: #303133;
+  font-weight: 500;
+}
+
+.resource-meta {
+  font-size: 12px;
+  color: #909399;
 }
 
 .resource-tag {
   padding: 6px 12px;
   border-radius: 6px;
   font-weight: 500;
+  font-size: 13px;
 }
 
 .action-buttons {
   display: flex;
   gap: 8px;
+  justify-content: center;
 }
 
 .download-btn, .preview-btn {
@@ -536,15 +676,15 @@ const openInNewTab = (url) => {
   align-items: center;
   justify-content: center;
   padding: 6px 12px;
+  font-size: 13px;
 }
 
-.download-btn .el-icon, .preview-btn .el-icon {
-  margin-right: 4px;
+.resource-row {
+  transition: background-color 0.3s;
 }
 
-.preview-btn {
-  background: linear-gradient(90deg, #3a8ee6, #5b48d0);
-  border: none;
+.resource-row:hover {
+  background-color: #f5f7fa;
 }
 
 .pagination-container {
@@ -569,15 +709,103 @@ const openInNewTab = (url) => {
   padding: 20px;
   margin: 0;
   border-bottom: 1px solid #ebeef5;
+  background: #f9fafc;
+  border-radius: 8px 8px 0 0;
+}
+
+.preview-dialog :deep(.el-dialog__title) {
+  font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.preview-dialog :deep(.el-dialog__body) {
+  padding: 0;
 }
 
 .preview-container {
-  min-height: 400px;
+  min-height: 500px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   padding: 40px 20px;
+  background-color: #f9fafc;
+}
+
+.pdf-preview {
+  width: 100%;
+  height: 600px;
+  overflow: auto;
+}
+
+.pdf-viewer {
+  width: 100%;
+  height: 100%;
+}
+
+.markdown-preview {
+  width: 100%;
+  max-height: 600px;
+  overflow: auto;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+}
+
+.markdown-content {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #303133;
+}
+
+.markdown-content :deep(h1) {
+  font-size: 2em;
+  margin-bottom: 0.5em;
+  color: #303133;
+}
+
+.markdown-content :deep(h2) {
+  font-size: 1.5em;
+  margin-bottom: 0.5em;
+  color: #303133;
+}
+
+.markdown-content :deep(p) {
+  margin-bottom: 1em;
+}
+
+.markdown-content :deep(code) {
+  background-color: #f5f7fa;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.image-preview {
+  width: 100%;
+  max-height: 600px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.image-preview :deep(.el-image) {
+  max-width: 100%;
+  max-height: 600px;
+}
+
+.video-preview {
+  width: 100%;
+  max-width: 800px;
+}
+
+.video-player {
+  width: 100%;
+  max-height: 600px;
+  border-radius: 8px;
+  background: black;
 }
 
 .unknown-preview {
@@ -617,6 +845,21 @@ const openInNewTab = (url) => {
   .action-buttons {
     flex-direction: column;
   }
+  
+  .resource-name {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  
+  .resource-icon {
+    margin-right: 0;
+    margin-bottom: 4px;
+  }
+  
+  .preview-dialog {
+    width: 95% !important;
+  }
 }
 
 .resources-page {
@@ -625,5 +868,16 @@ const openInNewTab = (url) => {
   padding: 0;
   margin: 0;
   overflow-x: hidden;
+}
+
+.delete-btn {
+  background-color: #f56c6c;
+  border-color: #f56c6c;
+  color: white;
+}
+
+.delete-btn:hover {
+  background-color: #f78989;
+  border-color: #f78989;
 }
 </style> 
