@@ -12,6 +12,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       
@@ -25,6 +28,8 @@ jobs:
         
       - name: Build
         run: npm run build
+        env:
+          NODE_ENV: production
         
       - name: Setup Pages
         uses: actions/configure-pages@v4
