@@ -4,6 +4,7 @@
     <div class="page-header">
       <h1>文件上传</h1>
       <p class="header-subtitle">上传分享您的学习资料、论文、代码和笔记</p>
+      <p class="header-subtitle"><strong>提醒：请不要上传会议视频</strong></p>
     </div>
     
     <!-- 主内容区域 -->

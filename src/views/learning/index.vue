@@ -4,7 +4,7 @@
     <div class="header-area">
       <div class="header-content">
         <h1 class="title">学习空间</h1>
-        <p class="description">[声明：本页面全部由ai生成]</p>
+        <p class="description">[声明：本页面内容大部分由ai生成]</p>
       </div>
     </div>
 
@@ -60,7 +60,7 @@
       <el-row :gutter="20" class="repo-cards">
         <el-col :xs="24" :sm="12" :md="8" :lg="6" v-for="(repo, index) in repositories" :key="index">
           <el-card class="repo-card" shadow="hover">
-            <img :src="repo.logo" class="repo-logo" :alt="repo.name">
+            <img :src="repo.logo" class="repo-logo" :alt="repo.name" v-if="repo.logo">
             <h3>{{ repo.name }}</h3>
             <p>{{ repo.description }}</p>
             <div class="repo-tags">
@@ -126,7 +126,7 @@ const openUrl = (url) => {
 const learningCategories = ref([
   {
     title: 'PyTorch基础',
-    description: '学习PyTorch框架基础知识，为构建深度学习模型打下基础',
+    description: '几个比较完整的pytorch教程',
     icon: 'Cpu',
     iconClass: 'icon-pytorch',
     resources: [
@@ -303,7 +303,7 @@ const repositories = ref([
     logo: 'https://paperswithcode.com/static/logo.png',
     url: 'https://paperswithcode.com/',
     tags: ['研究论文', '代码实现', '基准测试']
-  }
+  }, 
 ]);
 
 // 学习路径

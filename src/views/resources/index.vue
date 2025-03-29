@@ -4,6 +4,7 @@
     <div class="page-header">
       <h1>资源中心</h1>
       <p class="header-subtitle">浏览和下载小组共享的学习资料、论文、代码和笔记</p>
+      <p class="header-subtitle">如需上传，删除文件请点击右上角登录账号</p>
     </div>
     
     <!-- 主内容区域 -->
@@ -420,16 +421,39 @@ const handleDelete = (resource) => {
     }
   ).then(async () => {
     try {
-      // 这里添加删除资源的逻辑
-      // 实际项目中应该调用后端 API
-      const index = resources.value.findIndex(r => r.objectName === resource.objectName)
-      if (index > -1) {
-        resources.value.splice(index, 1)
+      const token = localStorage.getItem('token')
+      if (!token) {
+        ElMessage.warning('登录已过期，请重新登录')
+        router.push('/login')
+        return
+      }
+
+      const response = await fetch('https://api.yama-lei.top/api/oss/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          objectName: resource.objectName
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        // 从资源列表中移除
+        const index = resources.value.findIndex(r => r.objectName === resource.objectName)
+        if (index > -1) {
+          resources.value.splice(index, 1)
+        }
         ElMessage.success('删除成功')
+      } else {
+        ElMessage.error(data.message || '删除失败')
       }
     } catch (error) {
       console.error('删除失败:', error)
-      ElMessage.error('删除失败')
+      ElMessage.error('删除失败，请稍后重试')
     }
   }).catch(() => {
     // 取消删除
@@ -438,9 +462,11 @@ const handleDelete = (resource) => {
 
 // 组件挂载时获取资源列表
 onMounted(async () => {
-  checkLoginStatus()
-  loading.value = true
+  // 检查登录状态
+  isLoggedIn.value = localStorage.getItem('isLoggedIn') === 'true'
+  
   try {
+    loading.value = true
     // 获取OSS文件列表
     const fileList = await listFiles()
     console.log('OSS文件列表:', fileList)

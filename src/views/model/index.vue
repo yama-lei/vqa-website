@@ -261,104 +261,127 @@ const removeImage = () => {
 const sendMessage = async () => {
   if (!canSendMessage.value || loading.value) return;
   
-  // 如果没有当前聊天ID，创建一个新的聊天
-  if (!currentChatId.value) {
-    createNewChat();
-  }
-  
-  const userMessage = {
-    role: 'user',
-    content: {
-      text: inputMessage.value.trim(),
-      image: imageData.value || null
-    }
-  };
-  
-  // 添加用户消息到界面
-  messages.value.push(userMessage);
-  
-  // 保存用户消息到存储
-  addMessage(currentChatId.value, userMessage);
-  
-  // 清空输入
-  inputMessage.value = '';
-  removeImage();
-  
-  // 滚动到底部
-  scrollToBottom();
-  
-  // 显示加载状态
   loading.value = true;
   
   try {
-    // 准备历史消息格式 - 转换为后端API期望的格式
-    // 后端API期望的历史格式是 {role: 'user'/'assistant', content: '消息内容'}
-    const history = messages.value.slice(0, -1).map(msg => ({
+    // 准备用户消息
+    const userMessage = {
+      role: 'user',
+      content: {
+        text: inputMessage.value.trim(),
+        image: imageData.value || null
+      },
+      timestamp: new Date().toISOString()
+    };
+    
+    // 如果没有当前对话ID，创建新对话
+    if (!currentChatId.value) {
+      const newChatId = `${Date.now()}`;
+      const newChat = {
+        id: newChatId,
+        modelId: selectedModel.value,
+        messages: [userMessage],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      // 创建新对话后再添加到历史
+      createChat(newChat);
+      currentChatId.value = newChatId;
+      messages.value = [userMessage];
+    } else {
+      // 已有对话，添加消息
+      messages.value.push(userMessage);
+      addMessage(currentChatId.value, userMessage);
+    }
+    
+    // 清空输入
+    inputMessage.value = '';
+    imageData.value = '';
+    if (uploadRef.value) {
+      uploadRef.value.clearFiles();
+    }
+    
+    scrollToBottom();
+    
+    // 获取历史消息用于API请求
+    const messageHistory = messages.value.map(msg => ({
       role: msg.role,
-      content: msg.content.text // 仅发送文本内容
+      content: msg.content.text,
+      image: msg.content.image || undefined
     }));
     
-    // 调用API
-    const response = await sendChatRequest({
-      model: selectedModel.value,
-      message: userMessage.content.text,
-      image: userMessage.content.image,
-      history: history
+    // 发送API请求
+    const apiKey = localStorage.getItem('apiKey') || '';
+    
+    const response = await fetch('https://api.yama-lei.top/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey
+      },
+      body: JSON.stringify({
+        message: userMessage.content.text,
+        image: userMessage.content.image || undefined,
+        history: messageHistory.slice(0, -1), // 不包括刚刚添加的消息
+        model: selectedModel.value
+      })
     });
     
-    // 添加模型回复到界面
-    messages.value.push({
+    const data = await response.json();
+    
+    // 添加助手回复
+    const assistantMessage = {
       role: 'assistant',
       content: {
-        text: response.text || '',
-        image: null // 后端不返回图片
-      }
+        text: data.content || '抱歉，我无法理解您的问题'
+      },
+      timestamp: new Date().toISOString()
+    };
+    
+    messages.value.push(assistantMessage);
+    addMessage(currentChatId.value, assistantMessage);
+    
+    // 更新对话最后更新时间
+    updateChat(currentChatId.value, {
+      updatedAt: new Date().toISOString()
     });
     
-    // 保存模型回复到存储
-    addMessage(currentChatId.value, {
-      role: 'assistant',
-      content: {
-        text: response.text || '',
-        image: null
-      }
-    });
-    
-    // 滚动到底部
     scrollToBottom();
+    
   } catch (error) {
-    console.error('Error in chat:', error);
-    ElMessage.error('发送失败：' + (error.message || '未知错误'));
+    console.error('发送消息失败:', error);
+    ElMessage.error('发送失败，请稍后再试');
   } finally {
     loading.value = false;
   }
 };
 
-// 创建新聊天
+// 创建新对话
 const createNewChat = () => {
-  // 确保使用可用的模型ID
-  const modelId = AVAILABLE_MODELS[selectedModel.value] ? selectedModel.value : 'deepseek-chat';
-  const newChatId = createChat(modelId);
-  currentChatId.value = newChatId;
+  // 只有在发送第一条消息时才创建新对话
+  currentChatId.value = '';
   messages.value = [];
+  inputMessage.value = '';
+  imageData.value = '';
+  focusInput();
 };
 
 // 处理选择聊天
 const handleSelectChat = (chatId) => {
-  if (chatId === currentChatId.value) return;
-  
+  currentChatId.value = chatId;
   const chat = getChat(chatId);
   if (chat) {
-    currentChatId.value = chatId;
-    selectedModel.value = chat.modelId;
     messages.value = chat.messages || [];
-    scrollToBottom();
+    selectedModel.value = chat.modelId;
   }
+  scrollToBottom();
 };
 
 // 处理模型变更
-const handleModelChange = () => {
-  createNewChat();
+const handleModelChange = (modelId) => {
+  // 只更新选择的模型，不自动创建新对话
+  selectedModel.value = modelId;
 };
 
 // 监听模型变化

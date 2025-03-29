@@ -34,6 +34,10 @@
             登录
           </el-button>
         </el-form-item>
+        <div class="register-link">
+          <span>还没有账号？</span>
+          <el-button type="text" @click="goToRegister">立即注册</el-button>
+        </div>
       </el-form>
     </div>
   </div>
@@ -86,6 +90,8 @@ const handleLogin = async () => {
     if (response.ok) {
       localStorage.setItem('isLoggedIn', 'true')
       localStorage.setItem('userInfo', JSON.stringify(data))
+      localStorage.setItem('token', data.data?.token || '')
+      localStorage.setItem('username', data.data?.user?.username || loginForm.username)
       ElMessage.success('登录成功')
       router.push('/')
     } else {
@@ -97,6 +103,10 @@ const handleLogin = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const goToRegister = () => {
+  router.push('/register')
 }
 </script>
 
@@ -143,5 +153,11 @@ const handleLogin = async () => {
 
 :deep(.el-input__wrapper) {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.register-link {
+  text-align: center;
+  margin-top: 16px;
+  color: #606266;
 }
 </style> 
