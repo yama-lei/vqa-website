@@ -1,34 +1,69 @@
 <template>
-  <!--This Header is not on use!-->
   <div class="header-container">
-    <div class="logo">
-      <h1>VQA学习小组</h1>
+    <div class="left-section">
+      <h1 class="site-title">VQA学习小组</h1>
     </div>
-    <div class="header-right">
-      <el-dropdown>
-        <span class="el-dropdown-link">
-          <el-avatar :size="32" :src="avatarUrl">
-            <el-icon><UserFilled /></el-icon>
-          </el-avatar>
-          <span class="username">管理员</span>
-        </span>
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item>个人中心</el-dropdown-item>
-            <el-dropdown-item>设置</el-dropdown-item>
-            <el-dropdown-item divided>退出登录</el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
+    <div class="right-section">
+      <template v-if="isLoggedIn">
+        <el-dropdown @command="handleCommand">
+          <span class="user-info">
+            <el-avatar :size="32" :src="avatarUrl">
+              <el-icon><UserFilled /></el-icon>
+            </el-avatar>
+            <span class="username">{{ username }}</span>
+            <el-icon><ArrowDown /></el-icon>
+          </span>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="logout">退出登录</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </template>
+      <el-button 
+        v-else 
+        type="primary" 
+        @click="router.push('/login')"
+      >
+        登录
+      </el-button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { UserFilled } from '@element-plus/icons-vue'
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { UserFilled, ArrowDown } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 
+const router = useRouter()
 const avatarUrl = ref('')
+const isLoggedIn = ref(false)
+const username = ref('')
+
+// 检查登录状态
+const checkLoginStatus = () => {
+  isLoggedIn.value = localStorage.getItem('isLoggedIn') === 'true'
+  username.value = localStorage.getItem('username') || '用户'
+}
+
+// 处理下拉菜单命令
+const handleCommand = (command) => {
+  if (command === 'logout') {
+    localStorage.removeItem('isLoggedIn')
+    localStorage.removeItem('username')
+    localStorage.removeItem('userInfo')
+    isLoggedIn.value = false
+    username.value = ''
+    ElMessage.success('已退出登录')
+    router.push('/login')
+  }
+}
+
+onMounted(() => {
+  checkLoginStatus()
+})
 </script>
 
 <style scoped>
@@ -36,35 +71,36 @@ const avatarUrl = ref('')
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 100%;
+  height: 60px;
   padding: 0 20px;
+  background: white;
+  border-bottom: 1px solid #e6e6e6;
+  box-shadow: 0 1px 4px rgba(139, 161, 181, 0.08);
 }
 
-.logo {
-  display: flex;
-  align-items: center;
-}
-
-.logo h1 {
+.site-title {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
-  color: #fff;
+  color: #409EFF;
 }
 
-.header-right {
+.right-section {
   display: flex;
   align-items: center;
+  gap: 16px;
 }
 
-.el-dropdown-link {
+.user-info {
   display: flex;
   align-items: center;
+  gap: 8px;
   cursor: pointer;
-  color: #fff;
+  color: #303133;
 }
 
 .username {
-  margin-left: 8px;
+  font-size: 14px;
+  font-weight: 500;
 }
 </style> 

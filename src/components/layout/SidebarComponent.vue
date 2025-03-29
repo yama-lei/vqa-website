@@ -48,6 +48,13 @@
       <span>学习空间</span>
     </el-menu-item>
     
+    <el-menu-item index="/about">
+      <el-icon>
+        <InfoFilled />
+      </el-icon>
+      <span>关于我们</span>
+    </el-menu-item>
+    
     <div class="sidebar-footer">
       <div class="user-info">
         <el-avatar :size="32" src="https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png" />
@@ -65,7 +72,8 @@ import {
   Document,
   ChatLineRound,
   Upload,
-  Reading
+  Reading,
+  InfoFilled
 } from '@element-plus/icons-vue'
 
 const route = useRoute()

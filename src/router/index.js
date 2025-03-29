@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import MainLayout from '@/components/layout/MainLayout.vue'
 import Login from '../views/login/index.vue'
+import { ElMessage } from 'element-plus'
 
 const routes = [
   {
@@ -22,7 +23,7 @@ const routes = [
         path: 'resources',
         name: 'resources',
         component: () => import('@/views/resources/index.vue'),
-        meta: { requiresAuth: true }
+        meta: { title: '资源中心' }
       },
       {
         path: 'model',
@@ -34,13 +35,19 @@ const routes = [
         path: 'upload',
         name: 'upload',
         component: () => import('@/views/upload/index.vue'),
-        meta: { title: '文件上传' }
+        meta: { requiresAuth: true }
       },
       {
         path: 'learning',
         name: 'learning',
         component: () => import('@/views/learning/index.vue'),
         meta: { title: '学习空间' }
+      },
+      {
+        path: 'about',
+        name: 'about',
+        component: () => import('@/views/about/index.vue'),
+        meta: { title: '关于我们' }
       }
     ]
   }
@@ -56,6 +63,7 @@ router.beforeEach((to, from, next) => {
   const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true'
   
   if (to.meta.requiresAuth && !isLoggedIn) {
+    ElMessage.warning('请先登录后再操作')
     next('/login')
   } else {
     next()

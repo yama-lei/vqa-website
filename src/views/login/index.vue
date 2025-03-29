@@ -70,17 +70,30 @@ const handleLogin = async () => {
     await loginFormRef.value.validate()
     loading.value = true
     
-    // 这里模拟登录，实际项目中应该调用后端 API
-    if (loginForm.username === 'admin' && loginForm.password === 'admin') {
+    const response = await fetch('https://api.yama-lei.top/api/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        username: loginForm.username,
+        password: loginForm.password
+      })
+    })
+
+    const data = await response.json()
+
+    if (response.ok) {
       localStorage.setItem('isLoggedIn', 'true')
-      localStorage.setItem('username', loginForm.username)
+      localStorage.setItem('userInfo', JSON.stringify(data))
       ElMessage.success('登录成功')
-      router.push('/resources')
+      router.push('/')
     } else {
-      ElMessage.error('用户名或密码错误')
+      ElMessage.error(data.message || '登录失败，请检查用户名和密码')
     }
   } catch (error) {
     console.error('登录失败:', error)
+    ElMessage.error('登录失败，请稍后重试')
   } finally {
     loading.value = false
   }

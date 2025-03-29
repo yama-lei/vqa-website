@@ -73,7 +73,7 @@
           </el-table-column>
           <el-table-column label="上传时间" prop="uploadTime" width="180" align="center"></el-table-column>
           <el-table-column label="上传者" prop="uploader" width="120" align="center"></el-table-column>
-          <el-table-column label="操作" width="180" align="center" fixed="right">
+          <el-table-column label="操作" width="280" align="center" fixed="right">
             <template #default="scope">
               <div class="action-buttons">
                 <el-button 
@@ -403,6 +403,12 @@ const checkLoginStatus = () => {
 
 // 删除资源
 const handleDelete = (resource) => {
+  if (!isLoggedIn.value) {
+    ElMessage.warning('请先登录后再操作')
+    router.push('/login')
+    return
+  }
+
   ElMessageBox.confirm(
     `确定要删除资源 "${resource.name}" 吗？此操作不可恢复。`,
     '删除确认',
