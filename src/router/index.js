@@ -67,12 +67,37 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true'
   
+  // 检查用户是否为管理员
+  const checkIsAdmin = () => {
+    try {
+      const userInfo = localStorage.getItem('userInfo')
+      if (userInfo) {
+        const user = JSON.parse(userInfo)
+        return user.role === 'admin'
+      }
+    } catch (error) {
+      console.error('解析用户信息失败:', error)
+    }
+    return false
+  }
+  
+  const isAdmin = checkIsAdmin()
+  
+  // 需要管理员权限的页面
+  if (to.meta.requiresAdmin && !isAdmin) {
+    ElMessage.warning('该页面需要管理员权限')
+    next('/')
+    return
+  }
+  
+  // 需要登录权限的页面
   if (to.meta.requiresAuth && !isLoggedIn) {
     ElMessage.warning('请先登录后再操作')
     next('/login')
-  } else {
-    next()
+    return
   }
+  
+  next()
 })
 
 export default router

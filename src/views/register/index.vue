@@ -12,6 +12,10 @@
         <el-form-item label="确认密码" prop="confirmPassword">
           <el-input v-model="registerForm.confirmPassword" type="password" placeholder="请再次输入密码" show-password/>
         </el-form-item>
+        <el-form-item label="验证问题" prop="verifyAnswer">
+          <div class="verify-question">项目成员所在的大学是？（使用缩写，如CSU）</div>
+          <el-input v-model="registerForm.verifyAnswer" type="text" placeholder="请输入正确答案"/>
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="loading" @click="handleRegister" class="register-button">注册</el-button>
           <el-button @click="goToLogin" class="login-button">已有账号？去登录</el-button>
@@ -33,7 +37,8 @@ const registerFormRef = ref(null)
 const registerForm = reactive({
   username: '',
   password: '',
-  confirmPassword: ''
+  confirmPassword: '',
+  verifyAnswer: ''
 })
 
 const validatePass = (rule, value, callback) => {
@@ -59,6 +64,17 @@ const validateConfirmPass = (rule, value, callback) => {
   }
 }
 
+const validateVerifyAnswer = (rule, value, callback) => {
+  const correctAnswer = 'NJU'
+  if (value === '') {
+    callback(new Error('请回答验证问题'))
+  } else if (value.toLowerCase() !== correctAnswer.toLowerCase()) {
+    callback(new Error('回答错误，请输入正确答案'))
+  } else {
+    callback()
+  }
+}
+
 const rules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
@@ -69,6 +85,9 @@ const rules = {
   ],
   confirmPassword: [
     { validator: validateConfirmPass, trigger: 'blur' }
+  ],
+  verifyAnswer: [
+    { validator: validateVerifyAnswer, trigger: 'blur' }
   ]
 }
 
@@ -153,5 +172,11 @@ const goToLogin = () => {
 
 .login-button {
   width: 100%;
+}
+
+.verify-question {
+  margin-bottom: 10px;
+  font-weight: bold;
+  color: #409EFF;
 }
 </style> 

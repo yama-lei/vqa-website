@@ -4,7 +4,7 @@
     <div class="page-header">
       <h1>资源中心</h1>
       <p class="header-subtitle">浏览和下载小组共享的学习资料、论文、代码和笔记</p>
-      <p class="header-subtitle">如需上传，删除文件请点击右上角登录账号</p>
+      <p class="header-subtitle">需要登录才能下载文件，只有管理员才能删除文件</p>
     </div>
     
     <!-- 主内容区域 -->
@@ -81,6 +81,15 @@
                   size="small" 
                   class="download-btn"
                   @click="downloadResource(scope.row)"
+                  v-if="isLoggedIn"
+                >
+                  <el-icon><Download /></el-icon>下载
+                </el-button>
+                <el-button 
+                  v-if="!isLoggedIn"
+                  size="small" 
+                  type="info"
+                  @click="promptLogin('下载')"
                 >
                   <el-icon><Download /></el-icon>下载
                 </el-button>
@@ -93,7 +102,7 @@
                   <el-icon><View /></el-icon>预览
                 </el-button>
                 <el-button 
-                  v-if="isLoggedIn"
+                  v-if="isAdmin"
                   size="small" 
                   type="danger" 
                   class="delete-btn"
@@ -171,7 +180,10 @@
       </div>
       <template #footer>
         <el-button @click="previewDialogVisible = false">关闭</el-button>
-        <el-button type="primary" @click="downloadResource(currentResource)">
+        <el-button v-if="isLoggedIn" type="primary" @click="downloadResource(currentResource)">
+          <el-icon><Download /></el-icon>下载
+        </el-button>
+        <el-button v-else type="info" @click="promptLogin('下载')">
           <el-icon><Download /></el-icon>下载
         </el-button>
       </template>
@@ -214,6 +226,7 @@ const resources = ref([])
 
 const router = useRouter()
 const isLoggedIn = ref(false)
+const isAdmin = ref(false)
 
 // 获取标签类型
 const getTagType = (resourceType) => {
@@ -299,66 +312,6 @@ const handleCurrentChange = (page) => {
   currentPage.value = page
 }
 
-// 获取文件类型
-const getFileType = (fileName) => {
-  if (!fileName) return 'unknown'
-  
-  // 解码文件名（处理中文）
-  const decodedFileName = decodeURIComponent(fileName)
-  const typePrefix = decodedFileName.split('/')[0] // 获取类型前缀
-  
-  // 根据目录前缀确定文件类型
-  switch (typePrefix) {
-    case 'paper':
-      return 'paper'
-    case 'code':
-      return 'code'
-    case 'note':
-      return 'note'
-    case 'video':
-      return 'video'
-    default:
-      return 'other'
-  }
-}
-
-// 预览资源
-const previewResource = async (resource) => {
-  try {
-    console.log('开始预览资源:', resource)
-    
-    // 如果是 Markdown 文件，获取内容并渲染
-    if (isMarkdownFile(resource.name)) {
-      const response = await fetch(resource.url)
-      const markdownContent = await response.text()
-      renderedMarkdown.value = marked(markdownContent)
-    }
-    
-    // 显示预览对话框
-    currentResource.value = resource
-    previewDialogVisible.value = true
-  } catch (error) {
-    console.error('预览失败:', error)
-    ElMessage.error('预览失败，请尝试下载查看')
-  }
-}
-
-// 下载资源
-const downloadResource = (resource) => {
-  if (!resource || !resource.objectName) {
-    ElMessage.warning('资源信息不完整，无法下载')
-    return
-  }
-  
-  try {
-    ossDownload(resource.objectName, resource.name)
-    ElMessage.success('下载已开始')
-  } catch (error) {
-    console.error('下载失败:', error)
-    ElMessage.error(`下载失败: ${error.message}`)
-  }
-}
-
 // 根据文件名判断类型
 const determineType = (fileName) => {
   if (!fileName) {
@@ -397,19 +350,92 @@ const determineType = (fileName) => {
   return fileType
 }
 
-// 检查登录状态
-const checkLoginStatus = () => {
-  isLoggedIn.value = localStorage.getItem('isLoggedIn') === 'true'
+// 预览资源
+const previewResource = async (resource) => {
+  try {
+    console.log('开始预览资源:', resource)
+    
+    // 如果是 Markdown 文件，获取内容并渲染
+    if (isMarkdownFile(resource.name)) {
+      const response = await fetch(resource.url)
+      const markdownContent = await response.text()
+      renderedMarkdown.value = marked(markdownContent)
+    }
+    
+    // 显示预览对话框
+    currentResource.value = resource
+    previewDialogVisible.value = true
+  } catch (error) {
+    console.error('预览失败:', error)
+    ElMessage.error('预览失败，请尝试下载查看')
+  }
 }
 
-// 删除资源
-const handleDelete = (resource) => {
-  if (!isLoggedIn.value) {
-    ElMessage.warning('请先登录后再操作')
+// 检查用户权限
+const checkUserPermissions = () => {
+  isLoggedIn.value = localStorage.getItem('isLoggedIn') === 'true'
+  
+  // 检查是否为管理员
+  const userInfo = localStorage.getItem('userInfo')
+  if (userInfo) {
+    try {
+      const user = JSON.parse(userInfo)
+      isAdmin.value = user.role === 'admin'
+    } catch (error) {
+      console.error('解析用户信息失败:', error)
+      isAdmin.value = false
+    }
+  }
+}
+
+// 提示登录
+const promptLogin = (action) => {
+  ElMessageBox.confirm(
+    `您需要登录后才能${action}文件`,
+    '需要登录',
+    {
+      confirmButtonText: '去登录',
+      cancelButtonText: '取消',
+      type: 'warning'
+    }
+  ).then(() => {
     router.push('/login')
+  }).catch(() => {})
+}
+
+// 修改下载资源方法
+const downloadResource = (resource) => {
+  if (!resource || !resource.objectName) {
+    ElMessage.warning('资源信息不完整，无法下载')
     return
   }
+  
+  if (!isLoggedIn.value) {
+    promptLogin('下载')
+    return
+  }
+  
+  try {
+    ossDownload(resource.objectName, resource.name)
+    ElMessage.success('下载已开始')
+  } catch (error) {
+    console.error('下载失败:', error)
+    ElMessage.error(`下载失败: ${error.message}`)
+  }
+}
 
+// 修改删除资源方法
+const handleDelete = (resource) => {
+  if (!isLoggedIn.value) {
+    promptLogin('删除')
+    return
+  }
+  
+  if (!isAdmin.value) {
+    ElMessage.warning('只有管理员才能删除文件')
+    return
+  }
+  
   ElMessageBox.confirm(
     `确定要删除资源 "${resource.name}" 吗？此操作不可恢复。`,
     '删除确认',
@@ -462,8 +488,8 @@ const handleDelete = (resource) => {
 
 // 组件挂载时获取资源列表
 onMounted(async () => {
-  // 检查登录状态
-  isLoggedIn.value = localStorage.getItem('isLoggedIn') === 'true'
+  // 检查用户权限
+  checkUserPermissions()
   
   try {
     loading.value = true
