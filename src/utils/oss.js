@@ -363,14 +363,57 @@ export const deleteFile = async (objectName) => {
  * @param {String} objectName 对象名称
  * @param {String} fileName 下载后的文件名
  */
-export const downloadFile = (objectName, fileName) => {
-  const url = getSignedUrl(objectName)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = fileName || objectName.split('/').pop()
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
+export const downloadFile = async (objectName, fileName) => {
+  try {
+    console.log('开始下载文件:', { objectName, fileName });
+    
+    // 获取签名URL (正确使用await)
+    const url = await getSignedUrl(objectName, 'get', 3600);
+    console.log('获取到的下载URL:', url);
+    
+    // 方法1: 使用Fetch API下载
+    const response = await fetch(url, {
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`下载失败: ${response.status} ${response.statusText}`);
+    }
+    
+    // 获取blob数据
+    const blob = await response.blob();
+    console.log('下载的文件大小:', blob.size, '字节');
+    
+    if (blob.size === 0) {
+      console.error('下载的文件为空!');
+      throw new Error('下载的文件为空');
+    }
+    
+    // 创建下载链接
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = fileName || objectName.split('/').pop();
+    link.style.display = 'none';
+    
+    // 添加到DOM并触发下载
+    document.body.appendChild(link);
+    link.click();
+    
+    // 清理
+    setTimeout(() => {
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    }, 100);
+    
+    return true;
+  } catch (error) {
+    console.error('下载文件失败:', error);
+    throw error;
+  }
 }
 
 /**
