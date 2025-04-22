@@ -3,10 +3,6 @@
     <div class="about-content">
       <h1>关于我们</h1>
       <div class="section">
-       <span> 我们的主站：</span>
-       <a href="https://114.212.10.193:30443/" target="_blank">校内网址</a>
-      </div>
-      <div class="section">
        <span> 项目组成员</span>
       </div>
       <div class="section">
